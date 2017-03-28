@@ -8,7 +8,7 @@
  */
 
 // Apply the java plugin to add support for Java
-apply plugin: 'java'
+apply plugin: 'application'
 
 // In this section you declare where to find the dependencies of your project
 repositories {
@@ -29,8 +29,9 @@ dependencies {
     testCompile 'junit:junit:4.12'
 }
 
-task('runApp', type: JavaExec) {
-    main=mainClass
-    classpath=sourceSets.main.runtimeClasspath
-    standardInput=System.in
-}
+//task('runApp', type: JavaExec) {
+//    main=mainClass
+//    classpath=sourceSets.main.runtimeClasspath
+//    standardInput=System.in
+//}
+mainClassName = "websocket.WebSocketServer"

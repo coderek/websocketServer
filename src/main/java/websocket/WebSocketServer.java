@@ -16,7 +16,7 @@ public class WebSocketServer {
         server.startServer(4201, radio);
     }
 
-    void startServer(int port, Radio radio) {
+    public void startServer(int port, Radio radio) {
         try (
             ServerSocket serverSocket = new ServerSocket(port);
         ) {
