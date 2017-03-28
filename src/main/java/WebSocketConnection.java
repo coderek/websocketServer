@@ -9,7 +9,7 @@ import java.net.*;
 import java.nio.file.*;
 import radio.*;
 
-public class WebSocketConnection extends Thread implements RadioListener {
+public class WebSocketConnection extends Thread {
     private final String concat = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
     private String currentRadioName = null;
 
