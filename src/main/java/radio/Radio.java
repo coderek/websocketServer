@@ -1,5 +1,8 @@
 package radio;
 
+import io.reactivex.*;
+import io.reactivex.Observable;
+
 import java.util.*;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
@@ -14,12 +17,10 @@ public class Radio {
      * Radio Class
      */
 
-    private volatile RadioInfoCrawler crawler = null;
-
     // station to current playing infos
-    private Map<Station, List<String>> stations;
+    private Map<Station, Observable<String>> stations;
 
-    final String[] stationList = {
+    private final String[] stationList = {
             "Ria 89.7", "http://mediacorp.rastream.com/897fm",
             "Gold 90.5 FM", "http://mediacorp.rastream.com/905fm",
             "91.3 Hot FM", "http://sph.rastream.com/913fm",
@@ -41,56 +42,37 @@ public class Radio {
     public Radio() {
         // only radio can access this map
         stations = new HashMap<>();
+        startStations();
         logger.info("Radio started.");
     }
 
-    public void playStation(String freq) {
-        if (!Pattern.matches("[\\d\\.]+", freq)) return;
-        // short list
-        for (int i = 0; i < stationList.length; i += 2) {
-            if (stationList[i].indexOf(freq) != -1) {
-                playStation(stationList[i], stationList[i + 1]);
-                return;
+    public Optional<Observable<String>> getObservableStream(String freq) {
+        if (!Pattern.matches("[\\d\\.]+", freq)) return Optional.empty();
+
+        for (Station s: stations.keySet()) {
+            if (s.name.indexOf(freq)!=-1) {
+                return Optional.of(stations.get(s));
             }
         }
+        return Optional.empty();
     }
 
-    public List<String> get(String freq) {
-        List<String> ret = new ArrayList<>();
-        ;
-        if (!Pattern.matches("[\\d\\.]+", freq)) return ret;
-        playStation(freq);
-        // short list
-        for (Station s : stations.keySet()) {
-            if (s.name.indexOf(freq) != -1) return stations.get(s);
-        }
-        return ret;
-    }
-
-    private void playStation(int n) {
-        if (n < 0 || 2 * n >= stationList.length) return;
-        String stationName = stationList[n * 2];
-        String stationUrl = stationList[n * 2 + 1];
-        playStation(stationName, stationUrl);
-    }
-
-    private void playStation(String n, String u) {
-        Station s = new Station(n, u);
-        if (!stations.containsKey(s)) {
-            logger.info("Station not init yet, init now");
-            List<String> syncedList = Collections.synchronizedList(new ArrayList<String>());
-            stations.put(s, syncedList);
-            new RadioInfoCrawler(s, stations.get(s)).start();
+    private void startStations() {
+        for (int i=0;i<stationList.length;i+=2) {
+            Station s = new Station(stationList[i], stationList[i+1]);
+            stations.put(s, Observable.create((sub)->new RadioInfoCrawler(s, sub).start()));
         }
     }
 
-    public static void main(String[] args) {
-        Radio radio = new Radio();
-        try {
-            Thread.sleep(3000);
-        } catch (InterruptedException e) {
-
+    public static void main(String... args) {
+        Radio r = new Radio();
+        Optional<Observable<String>> o = r.getObservableStream("93.3");
+        if (o.isPresent()) {
+            o.get().subscribe(
+                    System.out::println,
+                    System.out::println,
+                    System.out::println
+            );
         }
-        radio.playStation(2);
     }
 }

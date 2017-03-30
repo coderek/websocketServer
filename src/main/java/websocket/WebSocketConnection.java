@@ -1,5 +1,7 @@
 package websocket;
 
+import io.reactivex.Observable;
+import io.reactivex.disposables.Disposable;
 import radio.Radio;
 
 import java.io.IOException;
@@ -8,10 +10,7 @@ import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.Socket;
 import java.security.MessageDigest;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.List;
-import java.util.Scanner;
+import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
@@ -25,14 +24,12 @@ public class WebSocketConnection extends Thread {
     private Socket sock = null;
     private OutputStream out;
     private Radio radio;
-    private Worker worker = null;
-    private MetaWrapper wrapper = null;
+    private Disposable dis = null;
 
     public WebSocketConnection(Socket _sock, Radio _radio) {
         logger.info("openning WebSocketConnection");
         sock = _sock;
         radio = _radio;
-        wrapper = new MetaWrapper();
     }
 
     public void run() {
@@ -49,7 +46,7 @@ public class WebSocketConnection extends Thread {
         }
     }
 
-    void readConnection(InputStream in, OutputStream out) {
+    private void readConnection(InputStream in, OutputStream out) {
         Scanner scanner = new Scanner(in, "UTF-8").useDelimiter("\\r\\n\\r\\n");
         String data = scanner.next();
         Matcher get = Pattern.compile("^GET").matcher(data);
@@ -61,7 +58,6 @@ public class WebSocketConnection extends Thread {
 
             doHandShake(clientKey, out);
 
-            initListeningThread(out);
             int b = -1;
             List<Byte> bytes = new ArrayList<>();
 
@@ -136,12 +132,19 @@ public class WebSocketConnection extends Thread {
         logger.info("Connection exited[" + Thread.currentThread() + "]");
     }
 
-    void initListeningThread(OutputStream out) {
-        if (worker != null) {
-            worker.interrupt();
-        }
-        worker = new Worker(wrapper, out);
-        worker.start();
+    void initListeningThread(Observable<String> obs, OutputStream out) {
+        if (dis!=null)
+            dis.dispose();
+
+        dis = obs.subscribe(
+                (msg)-> WebSocketConnection.sendString(msg, out),
+                (e)-> e.printStackTrace(),
+                ()->{
+                    System.out.println("Observable is closed");
+                    dis.dispose();
+                    dis=null;
+                }
+        );
     }
 
     void doHandShake(String clientKey, OutputStream out) {
@@ -186,8 +189,10 @@ public class WebSocketConnection extends Thread {
                 logger.info(parts[1]);
                 // frequency string e.g. "93.3"
                 String freq = parts[1];
-                wrapper.resetQueue(radio.get(freq));
-                initListeningThread(out);
+                Optional<Observable<String>> obs = radio.getObservableStream(freq);
+                if (obs.isPresent()) {
+                    initListeningThread(obs.get(), out);
+                }
                 break;
         }
     }
@@ -239,25 +244,4 @@ public class WebSocketConnection extends Thread {
         send(response, out);
     }
 
-
-    static class MetaWrapper {
-        List<String> metaQueue = new ArrayList<>();
-        int cur = 0;
-
-        boolean hasNext() {
-            return cur < metaQueue.size();
-        }
-
-        String next() {
-            return metaQueue.get(cur++);
-        }
-
-        void resetQueue(List<String> q) {
-            synchronized (metaQueue) {
-                metaQueue.notify();
-            }
-            metaQueue = q;
-            cur = Math.max(0, q.size() - 1);
-        }
-    }
 }

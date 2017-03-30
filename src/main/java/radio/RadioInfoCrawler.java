@@ -1,10 +1,13 @@
 package radio;
 
+import io.reactivex.ObservableEmitter;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.HttpURLConnection;
 import java.util.List;
+import java.util.StringJoiner;
 import java.util.logging.Logger;
 
 
@@ -15,13 +18,12 @@ import java.util.logging.Logger;
 class RadioInfoCrawler extends Thread {
     private Logger logger = Logger.getLogger("derek");
 
-    Station station;
-    // TODO clean up queue some time
-    List<String> metaQueue;
+    private Station station;
+    private ObservableEmitter<String> emitter;
 
-    RadioInfoCrawler(Station s, List<String> mq) {
+    RadioInfoCrawler(Station s, ObservableEmitter<String> _emitter) {
         station = s;
-        metaQueue = mq;
+        emitter = _emitter;
     }
 
     public void run() {
@@ -89,6 +91,7 @@ class RadioInfoCrawler extends Thread {
                                 break message_loop;
                             }
                         }
+                        logger.info("Supposed to read " + len + " bytes. Actually read " + cur + " bytes");
 
                         String text = new String(bytes).trim();
                         // maybe all spaces
@@ -109,10 +112,7 @@ class RadioInfoCrawler extends Thread {
         String[] segments = s.split(";");
 
         for (int i = 0; i < segments.length; i++) {
-            synchronized (metaQueue) {
-                metaQueue.add(segments[i]);
-                metaQueue.notifyAll();
-            }
+            emitter.onNext(segments[i]);
         }
     }
 }
