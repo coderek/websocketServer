@@ -1,15 +1,24 @@
 package websocket;
 
-import java.util.*;
-import java.util.concurrent.*;
-import java.io.*;
-import java.security.*;
-import java.util.regex.*;
-import java.net.*;
-import java.nio.file.*;
-import radio.*;
+import radio.Radio;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
+import java.net.Socket;
+import java.security.MessageDigest;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.List;
+import java.util.Scanner;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class WebSocketConnection extends Thread {
+    private Logger logger = Logger.getLogger("derek");
     private final String concat = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
     private String currentRadioName = null;
 
@@ -20,7 +29,7 @@ public class WebSocketConnection extends Thread {
     private MetaWrapper wrapper = null;
 
     public WebSocketConnection(Socket _sock, Radio _radio) {
-        System.out.println("openning WebSocketConnection");
+        logger.info("openning WebSocketConnection");
         sock = _sock;
         radio = _radio;
         wrapper = new MetaWrapper();
@@ -28,15 +37,15 @@ public class WebSocketConnection extends Thread {
 
     public void run() {
         try (
-            InputStream in = sock.getInputStream();
-            OutputStream out = sock.getOutputStream();
+                InputStream in = sock.getInputStream();
+                OutputStream out = sock.getOutputStream();
         ) {
             this.out = out;
             readConnection(in, out);
-            System.out.println("Closing WebSocketConnection");
+            logger.info("Closing WebSocketConnection");
             sock.close();
         } catch (IOException e) {
-            e.printStackTrace();
+            logger.log(Level.WARNING, "WebSocketConnection closed unexpectedly.", e);
         }
     }
 
@@ -58,7 +67,7 @@ public class WebSocketConnection extends Thread {
 
             try {
                 // message loop
-                while ((b=in.read())!=-1) {
+                while ((b = in.read()) != -1) {
                     // one message by one message
                     // check first byte
                     boolean fin = b > 127;
@@ -70,16 +79,16 @@ public class WebSocketConnection extends Thread {
                             int maskAndLen = in.read();
                             int diff = maskAndLen & 0b1111111;
                             int len = 0;
-                            if (diff <= 125 && diff >=0) {
+                            if (diff <= 125 && diff >= 0) {
                                 len = diff;
                             } else if (diff == 126) {
                                 len = in.read() * 256 + in.read();
                             } else if (diff == 127) {
-                                for (int i=0;i<8;i++) {
+                                for (int i = 0; i < 8; i++) {
                                     len = len * 256 + in.read();
                                 }
                             }
-                            System.out.println("String len: "+len);
+                            logger.info("String len: " + len);
 
                             if (maskAndLen <= 127) {
                                 System.err.print("Client message is not masked");
@@ -88,48 +97,47 @@ public class WebSocketConnection extends Thread {
                             }
 
                             byte[] mask = new byte[4];
-                            for (int i=0;i<4;i++) {
+                            for (int i = 0; i < 4; i++) {
                                 mask[i] = (byte) in.read();
                             }
 
                             // decode xor
-                            System.out.println("Decoding string");
-                            for (int i=0;i<len;i++) {
+                            logger.info("Decoding string");
+                            for (int i = 0; i < len; i++) {
                                 int tByte = in.read();
-                                bytes.add((byte)(tByte ^ mask[i & 0x3]));
+                                bytes.add((byte) (tByte ^ mask[i & 0x3]));
                             }
                             break;
                         case 9: // Ping
                             pong(out);
                             continue;
                         case 8: // Close
-                            System.out.println("Thread quit");
+                            logger.info("Thread quit");
                             return;
                         default:
                             continue;
                     }
 
                     if (fin) {
-                       byte[] strBytes = new byte[bytes.size()];
-                       for (int i=0;i<bytes.size();i++) {
-                           strBytes[i]= bytes.get(i);
-                       }
-                       processMessage(new String(strBytes), out);
-                       bytes.clear();
+                        byte[] strBytes = new byte[bytes.size()];
+                        for (int i = 0; i < bytes.size(); i++) {
+                            strBytes[i] = bytes.get(i);
+                        }
+                        processMessage(new String(strBytes), out);
+                        bytes.clear();
                     }
                 }
-                System.out.println("before exit, just read "+b);
+                logger.info("before exit, just read " + b);
             } catch (IOException e) {
-                System.out.println("Probably OutputStream is closed.");
-                e.printStackTrace();
+                logger.log(Level.WARNING, "Probably OutputStream is closed.", e);
             }
         }
 
-        System.out.println("Connection exited["+Thread.currentThread()+"]");
+        logger.info("Connection exited[" + Thread.currentThread() + "]");
     }
 
     void initListeningThread(OutputStream out) {
-        if (worker!=null) {
+        if (worker != null) {
             worker.interrupt();
         }
         worker = new Worker(wrapper, out);
@@ -147,12 +155,12 @@ public class WebSocketConnection extends Thread {
             String digest = new String(encoder.encode(bytes));
 
             String response = String.format("HTTP/1.1 101 Switching Protocols\r\n" +
-                    "Upgrade:websocket\r\n"+
-                    "Connection: Upgrade\r\n"+
+                    "Upgrade:websocket\r\n" +
+                    "Connection: Upgrade\r\n" +
                     "Sec-WebSocket-Accept: %s\r\n\r\n", digest);
             out.write(response.getBytes("UTF-8"));
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.log(Level.WARNING, "Handshake failed.", e);
         }
     }
 
@@ -163,7 +171,7 @@ public class WebSocketConnection extends Thread {
     }
 
     void processMessage(String message, OutputStream out) {
-        System.out.println("Got message: " + message);
+        logger.info("Got message: " + message);
         /*
          * Message consists of type and data, separated by |
          *
@@ -172,10 +180,10 @@ public class WebSocketConnection extends Thread {
          */
 
         String[] parts = message.split("\\|", 2);
-        if (parts.length!=2) return;
+        if (parts.length != 2) return;
         switch (parts[0].trim().toUpperCase()) {
             case "CHANGE_STATION":
-                System.out.println(parts[1]);
+                logger.info(parts[1]);
                 // frequency string e.g. "93.3"
                 String freq = parts[1];
                 wrapper.resetQueue(radio.get(freq));
@@ -185,7 +193,7 @@ public class WebSocketConnection extends Thread {
     }
 
     static void send(byte[] bytes, OutputStream out) throws IOException {
-        synchronized(out) {    
+        synchronized (out) {
             out.write(bytes);
             out.flush();
         }
@@ -193,39 +201,40 @@ public class WebSocketConnection extends Thread {
     }
 
     static void sendString(String s, OutputStream out) throws IOException {
-        System.out.println("sending " + s);
+        Logger logger = Logger.getLogger("derek");
+        logger.info("sending " + s);
 
         byte[] bytes = null;
         try {
             bytes = s.getBytes("UTF-8");
         } catch (UnsupportedEncodingException e) {
-            e.printStackTrace();
+            logger.log(Level.WARNING, "Can't get bytes.", e);
             return;
         }
         long len = bytes.length;
 
         byte[] response;
         int dataStart = 2;
-        if (len >=0 && len <=125) {
-            response = new byte[bytes.length+2];
+        if (len >= 0 && len <= 125) {
+            response = new byte[bytes.length + 2];
             response[1] = (byte) len;
-        } else if (len < (1<<17)) {
-            response = new byte[bytes.length+4];
+        } else if (len < (1 << 17)) {
+            response = new byte[bytes.length + 4];
             response[1] = (byte) 126;
             response[2] = (byte) (len >>> 8);
             response[3] = (byte) len;
             dataStart = 4;
         } else {
-            response = new byte[bytes.length+10];
+            response = new byte[bytes.length + 10];
             response[1] = (byte) 127;
-            for (int i=9;i>=2;i++) {
+            for (int i = 9; i >= 2; i++) {
                 response[i] = (byte) len;
-                len >>>=8;
+                len >>>= 8;
             }
             dataStart = 10;
         }
         response[0] = (byte) 0x81;
-        System.out.println("bytes length: "+bytes.length);
+        logger.info("bytes length: " + bytes.length);
         System.arraycopy(bytes, 0, response, dataStart, bytes.length);
         send(response, out);
     }
@@ -244,7 +253,7 @@ public class WebSocketConnection extends Thread {
         }
 
         void resetQueue(List<String> q) {
-            synchronized(metaQueue ) {
+            synchronized (metaQueue) {
                 metaQueue.notify();
             }
             metaQueue = q;

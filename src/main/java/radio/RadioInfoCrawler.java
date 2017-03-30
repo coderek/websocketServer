@@ -1,13 +1,11 @@
 package radio;
 
-import java.util.*;
-import java.util.concurrent.*;
-import java.io.*;
-import java.net.*;
-import java.nio.*;
-import java.nio.file.*;
-import java.time.LocalDateTime;
-import static java.nio.file.StandardWatchEventKinds.*;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UnsupportedEncodingException;
+import java.net.HttpURLConnection;
+import java.util.List;
+import java.util.logging.Logger;
 
 
 /*
@@ -15,6 +13,8 @@ import static java.nio.file.StandardWatchEventKinds.*;
 */
 
 class RadioInfoCrawler extends Thread {
+    private Logger logger = Logger.getLogger("derek");
+
     Station station;
     // TODO clean up queue some time
     List<String> metaQueue;
@@ -25,24 +25,24 @@ class RadioInfoCrawler extends Thread {
     }
 
     public void run() {
-        System.out.println("Start thread[" + Thread.currentThread().getId()+"]");
+        logger.info("Start thread[" + Thread.currentThread().getId() + "]");
 
         stream_start:
         while (!station.isTerminated()) {
-            System.out.println("================= Starting to listen to "+station.toString());
+            logger.info("================= Starting to listen to " + station.toString());
 
             HttpURLConnection conn = station.connect();
-            if (conn==null) continue;
+            if (conn == null) continue;
 
             // set header that is required for getting meta data
             conn.setDoOutput(true);
             conn.setRequestProperty("Icy-MetaData", "1");
 
-            int i=1;
+            int i = 1;
             int metaint = 0;
             String key = null;
             // getting response header
-            while ((key=conn.getHeaderFieldKey(i))!=null) {
+            while ((key = conn.getHeaderFieldKey(i)) != null) {
                 String val = conn.getHeaderField(i);
                 if (key.equals("icy-metaint")) {
                     metaint = Integer.parseInt(val);
@@ -50,11 +50,11 @@ class RadioInfoCrawler extends Thread {
                 i++;
             }
 
-            InputStream in=null;
+            InputStream in = null;
             try {
                 in = conn.getInputStream();
             } catch (IOException e) {
-                System.out.println("Input is closed restart");
+                logger.info("Input is closed restart");
                 e.printStackTrace();
                 continue;
             }
@@ -69,23 +69,23 @@ class RadioInfoCrawler extends Thread {
                     int len = in.read();
                     assert len != -1;
 
-                    if (len>0) {
+                    if (len > 0) {
                         len = len * 16;
 
                         byte[] bytes = new byte[len];
                         int cur = 0;
-                        while (in.available()>0 && cur < len) {
+                        while (in.available() > 0 && cur < len) {
                             int avail = Math.min(in.available(), len - cur);
 
                             // non blocking
-                            while (avail>0) {
+                            while (avail > 0) {
                                 bytes[cur] = (byte) in.read();
                                 avail--;
                                 cur++;
                             }
 
                             if (Thread.interrupted()) {
-                                System.out.println("reading is interrupted");
+                                logger.info("reading is interrupted");
                                 break message_loop;
                             }
                         }
@@ -102,13 +102,13 @@ class RadioInfoCrawler extends Thread {
                 }
             }
         }
-        System.out.println("Thread Exited[" + Thread.currentThread().getId()+"], station["+station.name+"]");
+        logger.info("Thread Exited[" + Thread.currentThread().getId() + "], station[" + station.name + "]");
     }
 
     private void process(String s) throws UnsupportedEncodingException {
         String[] segments = s.split(";");
 
-        for (int i=0;i<segments.length;i++) {
+        for (int i = 0; i < segments.length; i++) {
             synchronized (metaQueue) {
                 metaQueue.add(segments[i]);
                 metaQueue.notifyAll();

@@ -1,41 +1,46 @@
 package websocket;
-import java.util.concurrent.*;
-import java.io.*;
-import radio.*;
+
+import java.io.IOException;
+import java.io.OutputStream;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
 import static websocket.WebSocketConnection.MetaWrapper;
 
 public class Worker extends Thread {
+    private Logger logger = Logger.getLogger("derek");
 
     OutputStream out;
     MetaWrapper wrapper;
+
     public Worker(MetaWrapper w, OutputStream o) {
         out = o;
         wrapper = w;
     }
 
     public void run() {
-        System.out.println("worker started");
-        String line=null;
+        logger.info("worker started");
+        String line = null;
 
         while (!Thread.interrupted()) {
             try {
                 while (wrapper.hasNext()) {
                     line = wrapper.next();
-                    System.out.println(line);
+                    logger.info(line);
                     WebSocketConnection.sendString(line, out);
                 }
 
-               synchronized (wrapper.metaQueue) {
-                   wrapper.metaQueue.wait();
-               }
-               System.out.println("New meta info is available");
-          } catch (InterruptedException e) {
-              Thread.currentThread().interrupt();
+                synchronized (wrapper.metaQueue) {
+                    wrapper.metaQueue.wait();
+                }
+                logger.info("New meta info is available");
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
             } catch (IOException e) {
-                System.out.println("OutputStream is closed.");
+                logger.log(Level.WARNING, "OutputStream is closed.", e);
                 break;
             }
         }
-        System.out.println("Worker thread exited.");
+        logger.info("Worker thread exited.");
     }
 }
