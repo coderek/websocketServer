@@ -32,7 +32,10 @@ public class WebSocketServer {
 
 
     public void startServer(int port, Radio radio) {
-        logger.setUseParentHandlers(false);
+        boolean isDebugging = System.getenv().getOrDefault("debugging", "false").equals("true");
+        if (!isDebugging)
+            logger.setUseParentHandlers(false);
+
         try (
                 ServerSocket serverSocket = new ServerSocket(port);
         ) {

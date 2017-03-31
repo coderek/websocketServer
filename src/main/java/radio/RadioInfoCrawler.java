@@ -85,13 +85,13 @@ class RadioInfoCrawler extends Thread {
                                 avail--;
                                 cur++;
                             }
-
-                            if (Thread.interrupted()) {
-                                logger.info("reading is interrupted");
-                                break message_loop;
-                            }
                         }
-                        logger.info("Supposed to read " + len + " bytes. Actually read " + cur + " bytes");
+
+                        if (cur < len) {
+                            in.read(bytes, cur, len - cur);
+                        }
+
+                        assert len == cur: "Supposed to read " + len + " bytes. Actually read " + cur + " bytes";
 
                         String text = new String(bytes).trim();
                         // maybe all spaces
