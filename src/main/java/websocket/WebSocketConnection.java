@@ -1,6 +1,7 @@
 package websocket;
 
 import io.reactivex.Observable;
+import io.reactivex.Single;
 import io.reactivex.disposables.Disposable;
 import radio.Radio;
 
@@ -84,7 +85,7 @@ public class WebSocketConnection extends Thread {
                                     len = len * 256 + in.read();
                                 }
                             }
-                            logger.info("String len: " + len);
+//                            logger.info("String len: " + len);
 
                             if (maskAndLen <= 127) {
                                 System.err.print("Client message is not masked");
@@ -98,7 +99,7 @@ public class WebSocketConnection extends Thread {
                             }
 
                             // decode xor
-                            logger.info("Decoding string");
+//                            logger.info("Decoding string");
                             for (int i = 0; i < len; i++) {
                                 int tByte = in.read();
                                 bytes.add((byte) (tByte ^ mask[i & 0x3]));
@@ -109,6 +110,7 @@ public class WebSocketConnection extends Thread {
                             continue;
                         case 8: // Close
                             logger.info("Thread quit");
+                            logger.info("Number of active threads:" + java.lang.Thread.activeCount());
                             return;
                         default:
                             continue;
@@ -140,9 +142,7 @@ public class WebSocketConnection extends Thread {
                 (msg)-> WebSocketConnection.sendString(msg, out),
                 (e)-> e.printStackTrace(),
                 ()->{
-                    System.out.println("Observable is closed");
-                    dis.dispose();
-                    dis=null;
+                    assert false: "subscription should never self close";
                 }
         );
     }

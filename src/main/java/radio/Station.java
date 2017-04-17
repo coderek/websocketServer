@@ -16,7 +16,16 @@ public class Station {
     private boolean terminated = false;
     private BlockingQueue<String> queue = new ArrayBlockingQueue<String>(20);
 
+    private boolean inited = false;
+
     public Station() {
+    }
+
+    public synchronized  boolean getInited() {
+        return inited;
+    }
+    public synchronized void setInited(boolean i) {
+        inited = i;
     }
 
     public Station(String n, String u) {

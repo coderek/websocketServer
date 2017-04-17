@@ -2,6 +2,7 @@ package radio;
 
 import io.reactivex.*;
 import io.reactivex.Observable;
+import io.reactivex.disposables.Disposable;
 
 import java.util.*;
 import java.util.logging.Logger;
@@ -60,19 +61,33 @@ public class Radio {
     private void startStations() {
         for (int i=0;i<stationList.length;i+=2) {
             Station s = new Station(stationList[i], stationList[i+1]);
-            stations.put(s, Observable.create((sub)->new RadioInfoCrawler(s, sub).start()));
+            stations.put(s, Observable.create((sub)->{
+                if (!s.getInited())
+                    new RadioInfoCrawler(s, sub).start();
+            }));
         }
     }
 
     public static void main(String... args) {
         Radio r = new Radio();
+        Logger logger = Logger.getLogger("derek");
+
         Optional<Observable<String>> o = r.getObservableStream("93.3");
         if (o.isPresent()) {
+            Disposable d = o.get().subscribe(
+                    System.out::println,
+                    System.out::println,
+                    System.out::println
+            );
+            logger.info("Number of active threads:" + java.lang.Thread.activeCount());
+            d.dispose();
             o.get().subscribe(
                     System.out::println,
                     System.out::println,
                     System.out::println
             );
+            logger.info("Number of active threads:" + java.lang.Thread.activeCount());
+
         }
     }
 }

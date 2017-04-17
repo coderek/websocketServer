@@ -24,6 +24,7 @@ class RadioInfoCrawler extends Thread {
     RadioInfoCrawler(Station s, ObservableEmitter<String> _emitter) {
         station = s;
         emitter = _emitter;
+        s.setInited(true);
     }
 
     public void run() {

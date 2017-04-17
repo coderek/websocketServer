@@ -6,6 +6,15 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.util.logging.*;
 
+/**
+ * TODO
+ *
+ * 1. add route to each station
+ * 2. add option to mute talkings
+ * 3. add option to shuffle stations
+ */
+
+
 public class WebSocketServer {
     private Logger logger = Logger.getLogger("derek");
 
