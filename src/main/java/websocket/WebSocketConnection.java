@@ -3,6 +3,7 @@ package websocket;
 import io.reactivex.Observable;
 import io.reactivex.Single;
 import io.reactivex.disposables.Disposable;
+import radio.Message;
 import radio.Radio;
 
 import java.io.IOException;
@@ -12,6 +13,7 @@ import java.io.UnsupportedEncodingException;
 import java.net.Socket;
 import java.security.MessageDigest;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
@@ -28,7 +30,7 @@ public class WebSocketConnection extends Thread {
     private Disposable dis = null;
 
     public WebSocketConnection(Socket _sock, Radio _radio) {
-        logger.info("openning WebSocketConnection");
+        logger.info("opening WebSocketConnection");
         sock = _sock;
         radio = _radio;
     }
@@ -44,6 +46,10 @@ public class WebSocketConnection extends Thread {
             sock.close();
         } catch (IOException e) {
             logger.log(Level.WARNING, "WebSocketConnection closed unexpectedly.", e);
+        }
+        // clean up
+        if (dis != null) {
+            dis.dispose();
         }
     }
 
@@ -141,10 +147,9 @@ public class WebSocketConnection extends Thread {
         dis = obs.subscribe(
                 (msg)-> WebSocketConnection.sendString(msg, out),
                 (e)-> e.printStackTrace(),
-                ()->{
-                    assert false: "subscription should never self close";
-                }
+                ()->logger.info("subscription closed")
         );
+
     }
 
     void doHandShake(String clientKey, OutputStream out) {

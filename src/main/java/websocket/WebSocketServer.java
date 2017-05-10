@@ -4,6 +4,8 @@ import radio.Radio;
 
 import java.io.IOException;
 import java.net.ServerSocket;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.logging.*;
 
 /**
@@ -22,6 +24,8 @@ public class WebSocketServer {
         startRadio();
     }
 
+    private Executor executor = Executors.newCachedThreadPool();
+
     public static void startRadio() {
         try {
             Handler fileHandler = new FileHandler("%t/radio.log");
@@ -29,7 +33,7 @@ public class WebSocketServer {
 
             Logger.getLogger("derek").addHandler(fileHandler);
 
-            Radio radio = new Radio();
+            Radio radio = Radio.getInstance();
             // start socket server
             WebSocketServer server = new WebSocketServer();
             server.startServer(4201, radio);
@@ -49,7 +53,7 @@ public class WebSocketServer {
                 ServerSocket serverSocket = new ServerSocket(port);
         ) {
             while (true) {
-                new WebSocketConnection(serverSocket.accept(), radio).start();
+                executor.execute(new WebSocketConnection(serverSocket.accept(), radio));
                 logger.info("Number of active threads:" + java.lang.Thread.activeCount());
             }
         } catch (IOException e) {
